@@ -36,6 +36,10 @@ func NewModule(mod *pb.Module, client client.GameClient, sessionID, bombID strin
 		return NewSimonModule(mod, client, sessionID, bombID)
 	case pb.Module_MEMORY:
 		return NewMemoryModule(mod, client, sessionID, bombID)
+	case pb.Module_WHOS_ON_FIRST:
+		return NewWhosOnFirstModule(mod, client, sessionID, bombID)
+	case pb.Module_NEEDY_VENT_GAS:
+		return NewUnimplementedModule(mod)
 	default:
 		return NewUnimplementedModule(mod)
 	}
