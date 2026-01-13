@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -54,7 +55,7 @@ func (m *Model) Init() tea.Cmd {
 			return loadingErrorMsg{err: err}
 		}
 
-		sessionID, err := client.CreateGame(nil)
+		sessionID, err := client.CreateGame(context.Background())
 		if err != nil {
 			client.Close()
 			return loadingErrorMsg{err: fmt.Errorf("failed to create game: %w", err)}
