@@ -238,24 +238,25 @@ type ModuleModel interface {
 **Input**: `[T]` Tap, `[H]` Hold, `[R]` Release
 **Display**:
 ```
-╔════════════════════════════════════╗
-║           BIG BUTTON                ║
-║                                    ║
-║      ┌─────────────────────┐       ║
-║      │                     │       ║
-║      │       ABORT         │ BLUE  ║
-║      │                     │       ║
-║      │   Color: BLUE       │       ║
-║      │                     │       ║
-║      └─────────────────────┘       ║
-║                                    ║
-║   HOLDING - Strip: YELLOW          ║
-║   Press [R] to release...          ║
+    ┌─────────────┐    
+   ╱               ╲   
+  ╱                 ╲  
+ ╱                   ╲ 
+│                     │
+│       ABORT         │   ← Label centered
+│   Color: RED        │   ← Color centered  
+│                     │
+ ╲                   ╱ 
+  ╲                 ╱  
+   ╲               ╱   
+    └─────────────┘    
 ```
-- [x] Button color and label display
+- [x] Button color and label display (centering fixed)
 - [x] Hold action returns strip color
 - [x] Release action with timestamp
 - [x] Strike/success feedback
+- [x] Key repeat protection (prevents multiple HOLD sends)
+- [x] More circular button shape using curved box characters
 
 ### 3.4-3.12 Remaining Modules (TODO)
 - [ ] Simon Says Module

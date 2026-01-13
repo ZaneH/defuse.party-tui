@@ -3,7 +3,6 @@ package modules
 import (
 	"context"
 	"fmt"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -23,8 +22,8 @@ type BigButtonModule struct {
 	height int
 
 	isHolding   bool
+	holdSent    bool
 	stripColor  pb.Color
-	pressStart  time.Time
 	message     string
 	messageType string
 }
@@ -45,15 +44,23 @@ func (m *BigButtonModule) Init() tea.Cmd {
 func (m *BigButtonModule) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
+		key := msg.String()
+		switch key {
 		case "t", "T":
 			return m, m.sendTap()
 		case "h", "H":
+			if m.isHolding && m.holdSent {
+				return m, nil
+			}
 			return m, m.sendHold()
 		case "r", "R":
+			if !m.isHolding {
+				return m, nil
+			}
 			return m, m.sendRelease()
 		case "esc":
 			m.isHolding = false
+			m.holdSent = false
 			m.stripColor = pb.Color_UNKNOWN
 			return m, func() tea.Msg {
 				return BackToBombMsg{}
@@ -112,7 +119,7 @@ func (m *BigButtonModule) sendHold() tea.Cmd {
 		}
 
 		m.isHolding = true
-		m.pressStart = time.Now()
+		m.holdSent = true
 
 		input := &pb.PlayerInput{
 			SessionId: m.sessionID,
@@ -128,6 +135,7 @@ func (m *BigButtonModule) sendHold() tea.Cmd {
 		result, err := m.client.SendInput(context.Background(), input)
 		if err != nil {
 			m.isHolding = false
+			m.holdSent = false
 			return ModuleResultMsg{Err: err}
 		}
 
@@ -137,6 +145,7 @@ func (m *BigButtonModule) sendHold() tea.Cmd {
 
 		if result.GetStrike() {
 			m.isHolding = false
+			m.holdSent = false
 			m.message = "STRIKE!"
 			m.messageType = "error"
 			m.stripColor = pb.Color_UNKNOWN
@@ -155,12 +164,14 @@ func (m *BigButtonModule) sendRelease() tea.Cmd {
 		state := m.mod.GetBigButtonState()
 		if state == nil {
 			m.isHolding = false
+			m.holdSent = false
 			m.stripColor = pb.Color_UNKNOWN
 			return ModuleResultMsg{Err: fmt.Errorf("no button state")}
 		}
 
 		m.isHolding = false
-		releaseTime := time.Now().Unix()
+		m.holdSent = false
+		releaseTime := int64(0)
 
 		input := &pb.PlayerInput{
 			SessionId: m.sessionID,
@@ -200,7 +211,7 @@ func (m *BigButtonModule) sendRelease() tea.Cmd {
 func (m *BigButtonModule) View() string {
 	state := m.mod.GetBigButtonState()
 	if state == nil {
-		return styles.Error.Render("No button state available")
+		return styles.Error.Render("No button state available (backend issue)")
 	}
 
 	buttonColor := state.GetButtonColor()
@@ -209,40 +220,41 @@ func (m *BigButtonModule) View() string {
 	colorName := buttonColorToString(buttonColor)
 	colorStyle := buttonColorToStyle(buttonColor)
 
-	stripDisplay := "Not held"
-	if m.isHolding && m.stripColor != pb.Color_UNKNOWN {
-		stripColorName := buttonColorToString(m.stripColor)
-		stripStyle := buttonColorToStyle(m.stripColor)
-		stripDisplay = stripStyle.Render(fmt.Sprintf("  %s  ", stripColorName))
-	}
+	boxWidth := 21
+
+	labelPadded := lipgloss.NewStyle().Width(boxWidth).Align(lipgloss.Center).Render(label)
+	colorPadded := lipgloss.NewStyle().Width(boxWidth).Align(lipgloss.Center).Render("Color: " + colorName)
+
+	buttonDisplay := lipgloss.JoinVertical(
+		lipgloss.Center,
+		colorStyle.Render("    ┌─────────────┐    "),
+		colorStyle.Render("   ╱               ╲   "),
+		colorStyle.Render("  ╱                 ╲  "),
+		colorStyle.Render(" ╱                   ╲ "),
+		colorStyle.Render("│"+labelPadded+"│"),
+		colorStyle.Render("│"+colorPadded+"│"),
+		colorStyle.Render(" ╲                   ╱ "),
+		colorStyle.Render("  ╲                 ╱  "),
+		colorStyle.Render("   ╲               ╱   "),
+		colorStyle.Render("    └─────────────┘    "),
+	)
 
 	content := lipgloss.JoinVertical(
 		lipgloss.Center,
 		styles.Title.Render("BIG BUTTON"),
 		"",
-		styles.ContentBox.Render(
-			lipgloss.JoinVertical(
-				lipgloss.Center,
-				"",
-				colorStyle.Render(fmt.Sprintf("┌─────────────────────┐")),
-				colorStyle.Render(fmt.Sprintf("│                     │")),
-				colorStyle.Render(fmt.Sprintf("│      %s      │", label)),
-				colorStyle.Render(fmt.Sprintf("│                     │")),
-				colorStyle.Render(fmt.Sprintf("│   Color: %s   │", colorName)),
-				colorStyle.Render(fmt.Sprintf("│                     │")),
-				colorStyle.Render(fmt.Sprintf("└─────────────────────┘")),
-				"",
-			),
-		),
+		buttonDisplay,
 		"",
 	)
 
-	if m.isHolding {
+	if m.isHolding && m.stripColor != pb.Color_UNKNOWN {
+		stripColorName := buttonColorToString(m.stripColor)
+		stripStyle := buttonColorToStyle(m.stripColor)
 		content = lipgloss.JoinVertical(
 			lipgloss.Left,
 			content,
 			"",
-			styles.Warning.Render(fmt.Sprintf("HOLDING - Strip: %s", stripDisplay)),
+			stripStyle.Render(fmt.Sprintf("HOLDING - Strip: %s", stripColorName)),
 			styles.Subtitle.Render("Press [R] to release when timer shows correct digit"),
 		)
 	}
