@@ -148,7 +148,7 @@ func (m *MemoryModule) View() string {
 
 	var stageIndicators []string
 	for i := 5; i >= 1; i-- {
-		if i <= stage {
+		if i < stage {
 			stageIndicators = append(stageIndicators, styles.Success.Render("●"))
 		} else {
 			stageIndicators = append(stageIndicators, styles.Help.Render("○"))
