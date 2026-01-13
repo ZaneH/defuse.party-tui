@@ -78,73 +78,103 @@ keep-talking-tui/
 - [x] Create Wish server with Bubbletea middleware
 - [x] Configure SSH key handling (auto-generate host keys)
 - [x] Basic connection logging
-- [ ] Configuration via environment variables:
+- [x] Configuration via environment variables:
   - `TUI_SSH_PORT` (default: 2222)
   - `TUI_GRPC_ADDR` (default: localhost:50051)
 
 ---
 
-## Phase 2: Core TUI Architecture
+## Phase 2: Core TUI Architecture (COMPLETE)
 
 ### 2.1 Main Application Model
 
 ```go
 type AppState int
 const (
-    StateMenu AppState = iota
-    StateModuleList     // Viewing all modules
-    StateModuleActive   // Interacting with a module
-    StateGameOver       // Win or explosion
+    StateLoading AppState = iota
+    StateBombSelection
+    StateModuleActive
+    StateGameOver
 )
 
 type Model struct {
-    state        AppState
-    client       client.GameClient
+    state AppState
+
+    grpcAddr     string
+    gameClient   client.GameClient
     sessionID    string
     bombs        []*pb.Bomb
-    activeBomb   *pb.Bomb
-    activeModule ModuleModel  // Current module being interacted with
+    selectedBomb int
 
-    // UI state
-    width, height int
-    selectedIdx   int
+    currentFace int
 
-    // Timer
-    startedAt    time.Time
-    duration     time.Duration
+    selectedModule int
+
+    activeModule modules.ModuleModel
+
+    width  int
+    height int
+    err    error
+
+    startedAt        time.Time
+    duration         time.Duration
+    strikeFlashUntil time.Time
+    flashStrike      bool
 }
 ```
 
 ### 2.2 Header Component
 Displays at top of screen (always visible):
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│ KEEP TALKING AND NOBODY EXPLODES - DEFUSER TERMINAL               │
-│ Time Remaining: 03:00 | Strikes: ☐ ☐ ☐ | Serial: AB3CD5           │
-└─────────────────────────────────────────────────────────────────────┘
+╔══════════════════════════════════════════════════════════════════════╗
+║  KEEP TALKING AND NOBODY EXPLODES   Time: 04:40  Serial: MXSDCZ      ║
+║ [ ] [ ] [ ]   Batteries: 3  Ports: RJ45, PS2, SER                    ║
+╚══════════════════════════════════════════════════════════════════════╝
 ```
-- [ ] Timer countdown (updates every second via `tea.Tick`)
-- [ ] Strike indicators (☐ empty, ☒ struck)
-- [ ] Serial number display
-- [ ] Flashing/color change when strike occurs
+- [x] Timer countdown (updates every second via `tea.Tick`)
+- [x] Strike indicators ([X] struck, [ ] empty)
+- [x] Serial number display
+- [x] Flashing/color change when strike occurs (red flash)
+- [x] Warning colors (<60s yellow, <30s red)
+- [x] Batteries and ports display
 
 ### 2.3 Footer Component
 Command hints (context-sensitive):
 ```
-Commands: [S]witch module | [R]ead state | [H]elp | [Q]uit
+[ENTER] Pick up bomb | [↑/↓] Navigate | [Q]uit           (Bomb Selection)
+[ENTER] Select module | [<]/[>] Flip face | [ESC] Put down | [Q]uit  (Bomb View)
+[1-6] Cut wire | [ESC] Back to bomb | [Q]uit                         (Wires Module)
 ```
+- [x] Context-sensitive hints based on current state
 
-### 2.4 Module List View
+### 2.4 Module List/Bomb View
 Grid of all modules showing status:
 ```
-┌────────────────────┬────────────────────┬────────────────────────┐
-│ MODULE 1: WIRES    │ MODULE 2: BUTTON   │ MODULE 3: KEYPAD       │
-│ [✓ SOLVED]         │ [○ PENDING]        │ [◉ ACTIVE]             │
-└────────────────────┴────────────────────┴────────────────────────┘
+BOMB 1 - FRONT
+
+[1] WIRES        [2] PASSWORD
+  ○ PENDING        ○ PENDING
+
+[3] BIG BUTTON   [4] SIMON
+  ○ PENDING        ○ PENDING
 ```
-- [ ] Arrow key navigation
-- [ ] Enter to select/focus module
-- [ ] Visual indication of solved/pending/active
+- [x] Arrow key navigation (↑/↓/←/→ or vim keys h/j/k/l)
+- [x] Enter to select/focus module
+- [x] Visual indication of solved/pending (○ PENDING, ✓ SOLVED)
+- [x] Module sorting by position (row, col) - fixes non-deterministic map iteration
+- [x] Face navigation with [<] and [>] to flip bomb
+
+### 2.5 State Machine
+```
+StateLoading → StateBombSelection → StateBombView → StateModuleActive
+                    ↑                    ↑               ↓
+                    └────────────────────┴───────────────┘
+```
+- [x] Bomb selection state (resting - see bombs on table)
+- [x] Bomb view state (picked up - zoomed in on bomb face)
+- [x] Module active state (interacting with specific module)
+- [x] ESC key to go back from module to bomb view
+- [x] ESC key to put down bomb from bomb view
 
 ---
 
@@ -154,11 +184,16 @@ Each module implements a common interface:
 
 ```go
 type ModuleModel interface {
-    tea.Model
+    Init() tea.Cmd
+    Update(msg tea.Msg) (tea.Model, tea.Cmd)
+    View() string
+
     ID() string
-    Type() pb.ModuleType
+    ModuleType() pb.Module_ModuleType
     IsSolved() bool
-    Render(width, height int) string
+    UpdateState(mod *pb.Module)
+
+    Footer() string
 }
 ```
 
@@ -166,195 +201,49 @@ type ModuleModel interface {
 **Input**: Number key (1-6) to cut wire
 **Display**:
 ```
-│  Wire 1: ████████████████ RED                                    │
-│  Wire 2: ████████████████ BLUE                                   │
-│  Wire 3: ─ ─ ─ ─ ─ ─ ─ ─  YELLOW (CUT)                          │
-│  Wire 4: ████████████████ BLACK                                  │
-│                                                                   │
-│  > Cut wire [1-4]:                                               │
+╔════════════════════════════════════╗
+║            WIRES                   ║
+║                                    ║
+║  1: ▓▓▓▓▓▓▓▓▓▓▓▓▓  RED            ║
+║  2: ▓▓▓▓▓▓▓▓▓▓▓▓▓  BLUE           ║
+║  3: ───────────────────  YELLOW    ║
+║  4: ▓▓▓▓▓▓▓▓▓▓▓▓▓  BLACK           ║
+║                                    ║
+╚════════════════════════════════════╝
 ```
-- [ ] Colored wire blocks using lipgloss
-- [ ] Show cut state (dashed line)
-- [ ] 3-6 wires dynamically
+- [x] Colored wire blocks using lipgloss
+- [x] Show cut state (dashed line)
+- [x] 3-6 wires dynamically
+- [x] Send WiresInput to backend
+- [x] Handle strike/success feedback
 
-### 3.2 Big Button Module
-**Input**: `T` for tap, `H` to hold (then release with `R`)
-**Display**:
+### 3.2 Unimplemented Module
+**Display** for unsupported modules:
 ```
-│     ╔═══════════════════╗                                        │
-│     ║                   ║                                        │
-│     ║      [ABORT]      ║   Color: BLUE                         │
-│     ║                   ║   Label: ABORT                        │
-│     ╚═══════════════════╝                                        │
-│                                                                   │
-│     Strip Color: YELLOW (release when timer has 4)              │
-│                                                                   │
-│  > [T]ap or [H]old (then [R]elease):                            │
+╔════════════════════════════════════╗
+║          PASSWORD                  ║
+║                                    ║
+║  This module type is not yet       ║
+║  implemented.                      ║
+║                                    ║
+║  Press [ESC] to return to the bomb ║
+╚════════════════════════════════════╝
 ```
-- [ ] Button color displayed
-- [ ] Strip color appears on hold
-- [ ] Release timing display
+- [x] Placeholder for unimplemented module types
+- [x] Shows module type name
+- [x] Press ESC to go back
 
-### 3.3 Simon Says Module
-**Input**: `R`/`B`/`Y`/`G` for colors
-**Display** (from your mockup):
-```
-│                     ╔═══════╗                                    │
-│                     ║ [RED] ║                                    │
-│                ╔═══════╗ ╔═══════╗                               │
-│                ║ [BLU] ║ ║ [YEL] ║                               │
-│                ╚═══════╝ ╚═══════╝                               │
-│                     ╔═══════╗                                    │
-│                     ║ [GRN] ║                                    │
-│                     ╚═══════╝                                    │
-│    Sequence Shown:  [YEL] → [RED] → [BLU]                       │
-│    Your Input:  [YEL] [RED] [___]                                │
-```
-- [ ] Flashing animation via lipgloss bold/bright
-- [ ] Sequence display
-- [ ] Input progress tracking
-
-### 3.4 Password Module
-**Input**: Arrow keys to scroll letters, `Enter` to submit
-**Display**:
-```
-│     ┌───┬───┬───┬───┬───┐                                       │
-│     │ A │ B │ O │ U │ T │                                       │
-│     │ ▲ │ ▲ │ ▲ │ ▲ │ ▲ │                                       │
-│     │ ▼ │ ▼ │ ▼ │ ▼ │ ▼ │                                       │
-│     └───┴───┴───┴───┴───┘                                       │
-│                                                                   │
-│  > Use ←/→ to select column, ↑/↓ to change letter              │
-│  > Press [Enter] to submit                                       │
-```
-- [ ] 5 columns with scrollable letters
-- [ ] Current column highlight
-- [ ] Submit action
-
-### 3.5 Keypad Module
-**Input**: Number keys 1-4 to press symbols
-**Display**:
-```
-│     ┌─────────┬─────────┐                                        │
-│     │    ©    │    Ω    │                                        │
-│     │   [1]   │   [2]   │                                        │
-│     ├─────────┼─────────┤                                        │
-│     │    ¶    │    λ    │                                        │
-│     │   [3]   │   [4]   │                                        │
-│     └─────────┴─────────┘                                        │
-│                                                                   │
-│  Pressed: © ✓                                                    │
-│  > Press symbol [1-4]:                                           │
-```
-- [ ] Symbol character mapping (Unicode approximations)
-- [ ] Pressed state indicators
-
-### 3.6 Who's On First Module
-**Input**: Number key to select button word
-**Display**:
-```
-│     Screen: "BLANK"                                              │
-│                                                                   │
-│     ┌─────────┬─────────┐                                        │
-│     │ [1]YES  │ [2]WHAT │                                        │
-│     ├─────────┼─────────┤                                        │
-│     │ [3]UHHH │ [4]WAIT │                                        │
-│     ├─────────┼─────────┤                                        │
-│     │ [5]READY│ [6]PRESS│                                        │
-│     └─────────┴─────────┘                                        │
-│                                                                   │
-│     Stage: 2/3                                                   │
-```
-- [ ] Screen word display
-- [ ] 6 button words
-- [ ] Stage progress
-
-### 3.7 Memory Module
-**Input**: Number key 1-4 for button position
-**Display**:
-```
-│     Screen Display: [ 3 ]                                        │
-│                                                                   │
-│     ┌───┬───┬───┬───┐                                           │
-│     │ 2 │ 4 │ 1 │ 3 │                                           │
-│     │[1]│[2]│[3]│[4]│                                           │
-│     └───┴───┴───┴───┘                                           │
-│                                                                   │
-│     Stage: 3/5                                                   │
-│     > Press button [1-4]:                                        │
-```
-- [ ] Large screen number display
-- [ ] 4 buttons with labels and positions
-- [ ] Stage progress
-
-### 3.8 Morse Code Module
-**Input**: `←`/`→` to change frequency, `Enter` to transmit
-**Display**:
-```
-│     ╭─────────────────────────────────────╮                      │
-│     │  ● ● ● ─ ─ ─ ● ● ●                  │   ● = blinking      │
-│     │  (... --- ...)                      │                      │
-│     ╰─────────────────────────────────────╯                      │
-│                                                                   │
-│     Frequency: [◀ 3.505 MHz ▶]                                  │
-│                                                                   │
-│  > ←/→ to change frequency, [Enter] to TX                       │
-```
-- [ ] Morse pattern display (animated blink via tick)
-- [ ] Frequency slider
-- [ ] TX action
-
-### 3.9 Maze Module
-**Input**: `W`/`A`/`S`/`D` or arrow keys
-**Display** (from your mockup):
-```
-│    ┌─┬───┬─┬───┬─┬───┐                                          │
-│    │ │   │ │   │ │   │                                          │
-│    ├ ┼ ┬ ┤ └ ┬ ┴ ┤ ┬ ┤                                          │
-│    │ │ │ │ ◉ │   │ │ │    ◉ = You                              │
-│    ├ ┴ ┤ ├ ┬ ┼ ┬ ┴ ┤ ├                                          │
-│    │   │ │ │ │ │   │ │    ● = Target                           │
-│    ├ ┬ ┴ ┤ ├ ┤ ├ ┬ ┤ │                                          │
-│    │ │   │ │ │ │ │ │ │    ○ = Marker                           │
-│    ├ ┴ ┬ ┴ ┤ └ ┤ ├ ┤ ●                                          │
-│    │   │   │   │ │ │ │                                          │
-│    └───┴───┴───┴─┴─┴─┘                                          │
-```
-- [ ] 6x6 maze grid with box-drawing characters
-- [ ] Player position (◉)
-- [ ] Goal position (●)
-- [ ] Marker positions (○)
-- [ ] Wall rendering (need maze data from backend - note: backend doesn't expose walls, only validates moves)
-
-### 3.10 Needy Vent Gas Module
-**Input**: `Y`/`N`
-**Display**:
-```
-│     ╔═════════════════════════════╗                              │
-│     ║   VENT GAS?       [15s]    ║                              │
-│     ║                             ║                              │
-│     ║      [Y]ES    [N]O          ║                              │
-│     ╚═════════════════════════════╝                              │
-```
-- [ ] Countdown timer
-- [ ] Question display
-- [ ] Y/N input
-
-### 3.11 Needy Knob Module
-**Input**: `R` to rotate
-**Display**:
-```
-│     LED Pattern:                                                 │
-│     ○ ● ● ○ ● ○       [18s]                                     │
-│     ● ○ ○ ● ○ ●                                                 │
-│                                                                   │
-│     Dial Position: [▲ NORTH]                                    │
-│                                                                   │
-│  > Press [R] to rotate clockwise                                │
-```
-- [ ] LED pattern (● lit, ○ unlit)
-- [ ] Current dial direction
-- [ ] Countdown timer
+### 3.3-3.11 Remaining Modules (TODO)
+- [ ] Big Button Module
+- [ ] Simon Says Module
+- [ ] Password Module
+- [ ] Keypad Module
+- [ ] Who's On First Module
+- [ ] Memory Module
+- [ ] Morse Code Module
+- [ ] Maze Module
+- [ ] Needy Vent Gas Module
+- [ ] Needy Knob Module
 
 ---
 

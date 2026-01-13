@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -12,26 +13,43 @@ import (
 
 	"github.com/ZaneH/keep-talking-tui/internal/client"
 	"github.com/ZaneH/keep-talking-tui/internal/styles"
+	"github.com/ZaneH/keep-talking-tui/internal/tui/modules"
+	pb "github.com/ZaneH/keep-talking-tui/proto"
 )
 
 type AppState int
 
 const (
 	StateLoading AppState = iota
-	StateModuleList
+	StateBombSelection
+	StateBombView
 	StateModuleActive
 	StateGameOver
 )
 
 type Model struct {
-	state      AppState
-	grpcAddr   string
-	gameClient client.GameClient
-	sessionID  string
-	width      int
-	height     int
-	err        error
-	message    string
+	state AppState
+
+	grpcAddr     string
+	gameClient   client.GameClient
+	sessionID    string
+	bombs        []*pb.Bomb
+	selectedBomb int
+
+	currentFace int
+
+	selectedModule int
+
+	activeModule modules.ModuleModel
+
+	width  int
+	height int
+	err    error
+
+	startedAt        time.Time
+	duration         time.Duration
+	strikeFlashUntil time.Time
+	flashStrike      bool
 }
 
 func NewProgramHandler(grpcAddr string) bubbletea.ProgramHandler {
@@ -48,11 +66,19 @@ func NewProgramHandler(grpcAddr string) bubbletea.ProgramHandler {
 	}
 }
 
+type loadingErrorMsg struct{ err error }
+type gameReadyMsg struct {
+	client    client.GameClient
+	sessionID string
+	bombs     []*pb.Bomb
+}
+type tickMsg struct{ t time.Time }
+
 func (m *Model) Init() tea.Cmd {
 	return func() tea.Msg {
 		client, err := client.New(m.grpcAddr)
 		if err != nil {
-			return loadingErrorMsg{err: err}
+			return loadingErrorMsg{err: fmt.Errorf("failed to connect: %w", err)}
 		}
 
 		sessionID, err := client.CreateGame(context.Background())
@@ -61,9 +87,16 @@ func (m *Model) Init() tea.Cmd {
 			return loadingErrorMsg{err: fmt.Errorf("failed to create game: %w", err)}
 		}
 
+		bombs, err := client.GetBombs(context.Background(), sessionID)
+		if err != nil {
+			client.Close()
+			return loadingErrorMsg{err: fmt.Errorf("failed to get bombs: %w", err)}
+		}
+
 		return gameReadyMsg{
 			client:    client,
 			sessionID: sessionID,
+			bombs:     bombs,
 		}
 	}
 }
@@ -76,27 +109,241 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case gameReadyMsg:
-		m.state = StateModuleList
+		m.state = StateBombSelection
 		m.gameClient = msg.client
 		m.sessionID = msg.sessionID
+		m.bombs = msg.bombs
+		m.selectedBomb = 0
+		m.currentFace = 0
+		m.selectedModule = 0
+		if len(msg.bombs) > 0 {
+			bomb := msg.bombs[0]
+			m.startedAt = time.Unix(int64(bomb.GetStartedAt()), 0)
+			m.duration = time.Duration(bomb.GetTimerDuration()) * time.Second
+		}
+		return m, tea.Tick(time.Second, func(t time.Time) tea.Msg {
+			return tickMsg{t: t}
+		})
+
+	case tickMsg:
+		now := time.Now()
+
+		if m.startedAt.IsZero() {
+			return m, nil
+		}
+
+		elapsed := now.Sub(m.startedAt)
+		remaining := m.duration - elapsed
+
+		if remaining <= 0 {
+			m.state = StateGameOver
+			m.err = fmt.Errorf("time's up!")
+			return m, tea.Quit
+		}
+
+		if m.flashStrike && now.After(m.strikeFlashUntil) {
+			m.flashStrike = false
+		}
+
+		return m, tea.Tick(time.Second, func(t time.Time) tea.Msg {
+			return tickMsg{t: t}
+		})
+
+	case modules.ModuleResultMsg:
+		if msg.Err != nil {
+			return m, nil
+		}
+		result := msg.Result
+		if result.GetStrike() {
+			m.flashStrike = true
+			m.strikeFlashUntil = time.Now().Add(500 * time.Millisecond)
+		}
+		if result.GetSolved() && m.activeModule != nil {
+			m.activeModule.UpdateState(&pb.Module{
+				Id:     result.GetModuleId(),
+				Solved: true,
+			})
+		}
+		if result.GetBombStatus().GetExploded() {
+			m.state = StateGameOver
+			m.err = fmt.Errorf("BOOM! The bomb exploded.")
+			return m, tea.Quit
+		}
 		return m, nil
 
-	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
+	case modules.BackToBombMsg:
+		m.state = StateBombView
+		m.activeModule = nil
 		return m, nil
 
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "q", "ctrl+c":
+		switch m.state {
+		case StateBombSelection:
+			return m.handleBombSelectionKeys(msg)
+		case StateBombView:
+			return m.handleBombViewKeys(msg)
+		case StateModuleActive:
+			newModel, cmd := m.activeModule.Update(msg)
+			if newModule, ok := newModel.(modules.ModuleModel); ok {
+				m.activeModule = newModule
+				return m, cmd
+			}
+			return m, cmd
+		}
+
+		if msg.String() == "q" || msg.String() == "ctrl+c" {
 			if m.gameClient != nil {
 				m.gameClient.Close()
 			}
 			return m, tea.Quit
 		}
+
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
 	}
 
 	return m, nil
+}
+
+func (m *Model) handleBombSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "enter":
+		m.state = StateBombView
+		m.selectedModule = 0
+		m.currentFace = 0
+		return m, nil
+	case "up", "k":
+		if m.selectedBomb > 0 {
+			m.selectedBomb--
+		}
+	case "down", "j":
+		if m.selectedBomb < len(m.bombs)-1 {
+			m.selectedBomb++
+		}
+	case "q", "ctrl+c":
+		if m.gameClient != nil {
+			m.gameClient.Close()
+		}
+		return m, tea.Quit
+	}
+	return m, nil
+}
+
+func (m *Model) handleBombViewKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	faceModules := m.getCurrentFaceModules()
+
+	switch msg.String() {
+	case "enter":
+		if len(faceModules) > 0 {
+			m.state = StateModuleActive
+			mod := faceModules[m.selectedModule]
+			m.activeModule = modules.NewModule(mod, m.gameClient, m.sessionID, m.getCurrentBomb().GetId())
+			return m, m.activeModule.Init()
+		}
+	case "esc", "tab", "b":
+		m.state = StateBombSelection
+		return m, nil
+	case "<":
+		if m.currentFace > 0 {
+			m.currentFace--
+			m.selectedModule = 0
+		}
+	case ">":
+		maxFace := m.maxFaceIndex()
+		if m.currentFace < maxFace {
+			m.currentFace++
+			m.selectedModule = 0
+		}
+	case "up", "k":
+		if m.selectedModule > 0 {
+			m.selectedModule--
+		}
+	case "down", "j":
+		if m.selectedModule < len(faceModules)-1 {
+			m.selectedModule++
+		}
+	case "left", "h":
+		if m.selectedModule > 0 {
+			m.selectedModule--
+		}
+	case "right", "l":
+		if m.selectedModule < len(faceModules)-1 {
+			m.selectedModule++
+		}
+	case "q", "ctrl+c":
+		if m.gameClient != nil {
+			m.gameClient.Close()
+		}
+		return m, tea.Quit
+	}
+	return m, nil
+}
+
+func (m *Model) getCurrentBomb() *pb.Bomb {
+	if m.selectedBomb >= 0 && m.selectedBomb < len(m.bombs) {
+		return m.bombs[m.selectedBomb]
+	}
+	return nil
+}
+
+func (m *Model) getCurrentFaceModules() []*pb.Module {
+	bomb := m.getCurrentBomb()
+	if bomb == nil {
+		return nil
+	}
+
+	var faceModules []*pb.Module
+	for _, mod := range bomb.GetModules() {
+		if mod.GetPosition() != nil && mod.GetPosition().GetFace() == int32(m.currentFace) {
+			faceModules = append(faceModules, mod)
+		}
+	}
+
+	for _, mod := range bomb.GetModules() {
+		if mod.GetPosition() == nil {
+			faceModules = append(faceModules, mod)
+		}
+	}
+
+	sort.Slice(faceModules, func(i, j int) bool {
+		posI := faceModules[i].GetPosition()
+		posJ := faceModules[j].GetPosition()
+
+		if posI == nil && posJ == nil {
+			return faceModules[i].GetId() < faceModules[j].GetId()
+		}
+		if posI == nil {
+			return false
+		}
+		if posJ == nil {
+			return true
+		}
+
+		if posI.GetRow() != posJ.GetRow() {
+			return posI.GetRow() < posJ.GetRow()
+		}
+		return posI.GetCol() < posJ.GetCol()
+	})
+
+	return faceModules
+}
+
+func (m *Model) maxFaceIndex() int {
+	bomb := m.getCurrentBomb()
+	if bomb == nil {
+		return 0
+	}
+
+	maxFace := 0
+	for _, mod := range bomb.GetModules() {
+		if mod.GetPosition() != nil {
+			if face := int(mod.GetPosition().GetFace()); face > maxFace {
+				maxFace = face
+			}
+		}
+	}
+	return maxFace
 }
 
 func (m *Model) View() string {
@@ -105,9 +352,25 @@ func (m *Model) View() string {
 		return m.loadingView()
 	case StateGameOver:
 		return m.errorView()
-	default:
-		return m.moduleListView()
+	case StateBombSelection:
+		return m.bombSelectionView()
+	case StateBombView:
+		return m.bombView()
+	case StateModuleActive:
+		if m.activeModule != nil {
+			header := m.renderHeader(time.Now())
+			footer := m.renderFooter()
+			content := m.activeModule.View()
+			return lipgloss.JoinVertical(
+				lipgloss.Top,
+				header,
+				styles.ContentBox.Render(content),
+				footer,
+			)
+		}
+		return m.errorView()
 	}
+	return ""
 }
 
 func (m *Model) loadingView() string {
@@ -130,7 +393,7 @@ func (m *Model) errorView() string {
 	return styles.Center(
 		lipgloss.JoinVertical(
 			lipgloss.Center,
-			styles.Title.Render("ERROR"),
+			styles.Title.Render("GAME OVER"),
 			"",
 			styles.Error.Render(errMsg),
 		),
@@ -138,15 +401,30 @@ func (m *Model) errorView() string {
 	)
 }
 
-func (m *Model) moduleListView() string {
+func (m *Model) bombSelectionView() string {
 	header := m.renderHeader(time.Now())
 	footer := m.renderFooter()
 
+	var bombList []string
+	for i, bomb := range m.bombs {
+		serial := bomb.GetSerialNumber()
+		numModules := len(bomb.GetModules())
+		if i == m.selectedBomb {
+			bombList = append(bombList, styles.Active.Render(fmt.Sprintf("> BOMB %d: Serial %s  [%d modules]", i+1, serial, numModules)))
+		} else {
+			bombList = append(bombList, fmt.Sprintf("  BOMB %d: Serial %s  [%d modules]", i+1, serial, numModules))
+		}
+	}
+
+	if len(bombList) == 0 {
+		bombList = append(bombList, "  No bombs available")
+	}
+
 	content := lipgloss.JoinVertical(
 		lipgloss.Center,
-		styles.Title.Render("MODULE SELECTION"),
+		styles.Title.Render("SELECT A BOMB"),
 		"",
-		styles.Help.Render("Press [ENTER] to select a module, [Q] to quit"),
+		lipgloss.JoinVertical(lipgloss.Left, bombList...),
 	)
 
 	return lipgloss.JoinVertical(
@@ -157,32 +435,203 @@ func (m *Model) moduleListView() string {
 	)
 }
 
+func (m *Model) bombView() string {
+	header := m.renderHeader(time.Now())
+	footer := m.renderFooter()
+
+	faceModules := m.getCurrentFaceModules()
+
+	var modules []string
+	for i, mod := range faceModules {
+		modTypeName := m.moduleTypeName(mod.GetType())
+		solved := mod.GetSolved()
+		status := "○ PENDING"
+		if solved {
+			status = "✓ SOLVED"
+		}
+		if i == m.selectedModule {
+			modules = append(modules, styles.Active.Render(fmt.Sprintf("[%d] %s", i+1, modTypeName)))
+			modules = append(modules, styles.Active.Render(fmt.Sprintf("  > SELECTED    %s", status)))
+		} else {
+			modules = append(modules, fmt.Sprintf("[%d] %s", i+1, modTypeName))
+			modules = append(modules, fmt.Sprintf("  %s", status))
+		}
+		modules = append(modules, "")
+	}
+
+	faceName := "FRONT"
+	if m.currentFace == 1 {
+		faceName = "BACK"
+	} else if m.currentFace > 1 {
+		faceName = fmt.Sprintf("FACE %d", m.currentFace+1)
+	}
+
+	content := lipgloss.JoinVertical(
+		lipgloss.Center,
+		styles.Title.Render(fmt.Sprintf("BOMB %d - %s", m.selectedBomb+1, faceName)),
+		"",
+		lipgloss.JoinVertical(lipgloss.Left, modules...),
+	)
+
+	return lipgloss.JoinVertical(
+		lipgloss.Top,
+		header,
+		styles.ContentBox.Render(content),
+		footer,
+	)
+}
+
+func (m *Model) moduleTypeName(t pb.Module_ModuleType) string {
+	switch t {
+	case pb.Module_WIRES:
+		return "WIRES"
+	case pb.Module_PASSWORD:
+		return "PASSWORD"
+	case pb.Module_BIG_BUTTON:
+		return "BIG BUTTON"
+	case pb.Module_SIMON:
+		return "SIMON"
+	case pb.Module_KEYPAD:
+		return "KEYPAD"
+	case pb.Module_WHOS_ON_FIRST:
+		return "WHO'S ON FIRST"
+	case pb.Module_MEMORY:
+		return "MEMORY"
+	case pb.Module_MORSE:
+		return "MORSE CODE"
+	case pb.Module_NEEDY_VENT_GAS:
+		return "VENT GAS"
+	case pb.Module_NEEDY_KNOB:
+		return "KNOB"
+	case pb.Module_MAZE:
+		return "MAZE"
+	default:
+		return "UNKNOWN"
+	}
+}
+
 func (m *Model) renderHeader(now time.Time) string {
+	bomb := m.getCurrentBomb()
+	if bomb == nil {
+		return styles.HeaderBox.Render(
+			lipgloss.JoinHorizontal(
+				lipgloss.Left,
+				styles.Title.Render("KEEP TALKING AND NOBODY EXPLODES - DEFUSER TERMINAL"),
+			),
+		)
+	}
+
+	elapsed := now.Sub(m.startedAt)
+	remaining := m.duration - elapsed
+	if remaining < 0 {
+		remaining = 0
+	}
+
+	minutes := int(remaining.Minutes())
+	seconds := int(remaining.Seconds()) % 60
+	timerStr := fmt.Sprintf("%02d:%02d", minutes, seconds)
+
 	timerStyle := styles.Normal
-	if now.Second()%2 == 0 {
+	if remaining < 30*time.Second {
+		timerStyle = styles.Error
+	} else if remaining < 60*time.Second {
 		timerStyle = styles.Warning
 	}
 
-	return styles.HeaderBox.Render(
-		lipgloss.JoinHorizontal(
-			lipgloss.Left,
-			styles.Title.Render("KEEP TALKING AND NOBODY EXPLODES - DEFUSER TERMINAL"),
-			"  ",
-			timerStyle.Render(fmt.Sprintf("Time: --:--")),
-			"  ",
-			styles.Normal.Render("Strikes: [ ] [ ] [ ]"),
-		),
+	if m.flashStrike {
+		timerStyle = styles.Strike
+	}
+
+	strikes := ""
+	for i := int32(0); i < bomb.GetMaxStrikes(); i++ {
+		if i < bomb.GetStrikeCount() {
+			strikes += "[X] "
+		} else {
+			strikes += "[ ] "
+		}
+	}
+
+	serial := bomb.GetSerialNumber()
+	batteries := bomb.GetBatteries()
+	ports := bomb.GetPorts()
+	portStr := ""
+	if len(ports) > 0 {
+		var portNames []string
+		for _, p := range ports {
+			switch p {
+			case pb.Port_DVID:
+				portNames = append(portNames, "DVI")
+			case pb.Port_RCA:
+				portNames = append(portNames, "RCA")
+			case pb.Port_PS2:
+				portNames = append(portNames, "PS2")
+			case pb.Port_RJ45:
+				portNames = append(portNames, "RJ45")
+			case pb.Port_SERIAL:
+				portNames = append(portNames, "SER")
+			}
+		}
+		portStr = fmt.Sprintf("Ports: %s", joinStrings(portNames, ", "))
+	}
+
+	batteryStr := ""
+	if batteries > 0 {
+		batteryStr = fmt.Sprintf("Batteries: %d", batteries)
+	}
+
+	headerContent := lipgloss.JoinHorizontal(
+		lipgloss.Left,
+		styles.Title.Render("KEEP TALKING AND NOBODY EXPLODES"),
+		"  ",
+		timerStyle.Render(fmt.Sprintf("Time: %s", timerStr)),
+		"  ",
+		styles.Normal.Render(fmt.Sprintf("Serial: %s", serial)),
 	)
+
+	if batteryStr != "" || portStr != "" {
+		headerContent = lipgloss.JoinVertical(
+			lipgloss.Left,
+			headerContent,
+			lipgloss.JoinHorizontal(
+				lipgloss.Left,
+				styles.Normal.Render(strikes),
+				"  ",
+				styles.Help.Render(batteryStr),
+				"  ",
+				styles.Help.Render(portStr),
+			),
+		)
+	} else {
+		headerContent = lipgloss.JoinVertical(
+			lipgloss.Left,
+			headerContent,
+			styles.Normal.Render(strikes),
+		)
+	}
+
+	return styles.HeaderBox.Render(headerContent)
 }
 
 func (m *Model) renderFooter() string {
-	return styles.FooterBox.Render(
-		styles.Help.Render("Commands: [ENTER] Select | [Q]uit"),
-	)
+	hint := ""
+	switch m.state {
+	case StateBombSelection:
+		hint = "[ENTER] Pick up bomb | [↑/↓] Navigate | [Q]uit"
+	case StateBombView:
+		hint = "[ENTER] Select module | [<]/[>] Flip face | [ESC] Put down | [Q]uit"
+	case StateModuleActive:
+		hint = m.activeModule.Footer()
+	}
+	return styles.FooterBox.Render(styles.Help.Render(hint))
 }
 
-type loadingErrorMsg struct{ err error }
-type gameReadyMsg struct {
-	client    client.GameClient
-	sessionID string
+func joinStrings(strs []string, sep string) string {
+	if len(strs) == 0 {
+		return ""
+	}
+	result := strs[0]
+	for i := 1; i < len(strs); i++ {
+		result += sep + strs[i]
+	}
+	return result
 }
