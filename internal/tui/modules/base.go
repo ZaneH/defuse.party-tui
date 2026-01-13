@@ -32,6 +32,8 @@ func NewModule(mod *pb.Module, client client.GameClient, sessionID, bombID strin
 		return NewPasswordModule(mod, client, sessionID, bombID)
 	case pb.Module_MORSE:
 		return NewMorseModule(mod, client, sessionID, bombID)
+	case pb.Module_SIMON:
+		return NewSimonModule(mod, client, sessionID, bombID)
 	default:
 		return NewUnimplementedModule(mod)
 	}

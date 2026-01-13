@@ -292,21 +292,38 @@ type ModuleModel interface {
 - [x] Real-time clock animation (uses `time.Since()` instead of tick counter)
 - [x] Index derived from frequency (fallback when backend returns 0)
 
+### 3.5 Simon Says Module
+**Input**: Arrow keys (↑/↓/←/→) or letter keys (R/G/B/Y)
+**Display**:
+```
+╔════════════════════════════════════════════════════════════════╗
+║                       SIMON SAYS                                ║
+║                                                                 ║
+║              [RED]                                             ║
+║                                                                 ║
+║    [YELLOW]          [BLUE]                                    ║
+║                                                                 ║
+║              [GREEN]                                           ║
+║                                                                 ║
+║     [↑/↓/←/→] or [R/G/B/Y] Press button | [ESC] Back to bomb   ║
+╚════════════════════════════════════════════════════════════════╝
+```
+- [x] Full button flash (entire button lights up when active)
+- [x] Continuous looping sequence with 2s pause between iterations
+- [x] Arrow key input: ↑=RED, ↓=GREEN, ←=YELLOW, →=BLUE
+- [x] Letter key alternative: R/G/B/Y
+- [x] Real-time animation using `time.Since()` for smooth timing
+- [x] Send SimonInput to backend on color press
+- [x] Handle strike/success feedback
+- [x] Reset sequence position on strike
+
 **Timing constants** (from reference):
-- DOT_DURATION = 0.3s
-- DASH_DURATION = 0.9s
-- SYMBOL_PAUSE = 0.3s
-- LETTER_PAUSE = 0.9s
+- FLASH_DURATION = 0.3s
+- SEQUENCE_DELAY = 0.75s (time between flashes)
+- SEQUENCE_PAUSE = 2.0s (pause between sequences)
 
-**Implementation notes**:
-- Animation uses real elapsed time (`time.Since(startTime)`) rather than tick-based counter, matching the React implementation's `THREE.Clock` approach
-- Slider uses `strings.Builder` for rune-aware string building to correctly handle multi-byte Unicode characters (e.g., `─` is 3 bytes in UTF-8)
-- Frequency index is derived from the displayed frequency using a closest-match function, as the backend's `selectedFrequencyIndex` field may not always be reliable
-
-### 3.5-3.12 Remaining Modules (TODO)
-- [ ] Simon Says Module
-- [x] Password Module
-- [x] Keypad Module
+### 3.6-3.12 Remaining Modules (TODO)
+- [x] Simon Says Module
 - [ ] Who's On First Module
 - [ ] Memory Module
 - [x] Morse Code Module
