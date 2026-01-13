@@ -26,6 +26,8 @@ func NewModule(mod *pb.Module, client client.GameClient, sessionID, bombID strin
 		return NewWiresModule(mod, client, sessionID, bombID)
 	case pb.Module_BIG_BUTTON:
 		return NewBigButtonModule(mod, client, sessionID, bombID)
+	case pb.Module_KEYPAD:
+		return NewKeypadModule(mod, client, sessionID, bombID)
 	default:
 		return NewUnimplementedModule(mod)
 	}

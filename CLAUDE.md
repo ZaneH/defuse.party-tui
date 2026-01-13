@@ -261,7 +261,7 @@ type ModuleModel interface {
 ### 3.4-3.12 Remaining Modules (TODO)
 - [ ] Simon Says Module
 - [ ] Password Module
-- [ ] Keypad Module
+- [x] Keypad Module
 - [ ] Who's On First Module
 - [ ] Memory Module
 - [ ] Morse Code Module
