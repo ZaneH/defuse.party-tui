@@ -294,10 +294,10 @@ type ModuleModel interface {
 
 ### 3.5-3.12 Remaining Modules (TODO)
 - [x] Simon Says Module
+- [x] Memory Module
 - [ ] Who's On First Module
-- [ ] Memory Module
-- [x] Morse Code Module
 - [ ] Maze Module
+- [x] Morse Code Module
 - [ ] Needy Vent Gas Module
 - [ ] Needy Knob Module
 
