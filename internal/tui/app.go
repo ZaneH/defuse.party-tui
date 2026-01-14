@@ -3,7 +3,6 @@ package tui
 import (
 	"context"
 	"fmt"
-	"log"
 	"sort"
 	"time"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/ssh"
 	"github.com/charmbracelet/wish/bubbletea"
+	"github.com/muesli/termenv"
 
 	"github.com/ZaneH/keep-talking-tui/internal/client"
 	"github.com/ZaneH/keep-talking-tui/internal/styles"
@@ -55,9 +55,10 @@ type Model struct {
 
 func NewProgramHandler(grpcAddr string) bubbletea.ProgramHandler {
 	return func(sess ssh.Session) *tea.Program {
-		log.Printf("Environment: %v", sess.Environ())
-		pty, _, active := sess.Pty()
-		log.Printf("PTY active: %v, TERM: %s, Width: %d, Height: %d", active, pty.Term, pty.Window.Width, pty.Window.Height)
+		_, _, active := sess.Pty()
+		if active {
+			lipgloss.SetColorProfile(termenv.ANSI256)
+		}
 
 		return tea.NewProgram(
 			&Model{
