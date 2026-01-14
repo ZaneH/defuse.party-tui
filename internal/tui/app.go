@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"log"
 	"sort"
 	"time"
 
@@ -54,6 +55,10 @@ type Model struct {
 
 func NewProgramHandler(grpcAddr string) bubbletea.ProgramHandler {
 	return func(sess ssh.Session) *tea.Program {
+		log.Printf("Environment: %v", sess.Environ())
+		pty, _, active := sess.Pty()
+		log.Printf("PTY active: %v, TERM: %s, Width: %d, Height: %d", active, pty.Term, pty.Window.Width, pty.Window.Height)
+
 		return tea.NewProgram(
 			&Model{
 				state:    StateLoading,
