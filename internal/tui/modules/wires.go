@@ -9,7 +9,7 @@ import (
 
 	"github.com/ZaneH/keep-talking-tui/internal/client"
 	"github.com/ZaneH/keep-talking-tui/internal/styles"
-	pb "github.com/ZaneH/keep-talking-tui/proto"
+	pb "github.com/ZaneH/keep-talking/pkg/proto"
 )
 
 type ModuleResultMsg struct {

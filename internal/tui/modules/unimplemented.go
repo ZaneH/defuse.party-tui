@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/ZaneH/keep-talking-tui/internal/styles"
-	pb "github.com/ZaneH/keep-talking-tui/proto"
+	pb "github.com/ZaneH/keep-talking/pkg/proto"
 )
 
 type UnimplementedModule struct {

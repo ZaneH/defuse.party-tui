@@ -4,7 +4,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/ZaneH/keep-talking-tui/internal/client"
-	pb "github.com/ZaneH/keep-talking-tui/proto"
+	pb "github.com/ZaneH/keep-talking/pkg/proto"
 )
 
 type ModuleModel interface {

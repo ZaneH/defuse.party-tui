@@ -14,6 +14,8 @@ This project provides a text-based interface for playing defuse.party, connectab
 - Go 1.21+
 - The gRPC backend server running
 
+**Note**: This TUI imports protocol buffer definitions from the [backend repository](https://github.com/ZaneH/keep-talking) as a Go module dependency. Proto files are not duplicated in this repository - they are consumed directly from the backend's generated code.
+
 ### Building
 
 ```bash

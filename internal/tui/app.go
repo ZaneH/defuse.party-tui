@@ -15,7 +15,7 @@ import (
 	"github.com/ZaneH/keep-talking-tui/internal/client"
 	"github.com/ZaneH/keep-talking-tui/internal/styles"
 	"github.com/ZaneH/keep-talking-tui/internal/tui/modules"
-	pb "github.com/ZaneH/keep-talking-tui/proto"
+	pb "github.com/ZaneH/keep-talking/pkg/proto"
 )
 
 type AppState int

@@ -1,4 +1,4 @@
-.PHONY: all build clean run proto generate test
+.PHONY: all build clean run test
 
 all: build
 
@@ -7,16 +7,9 @@ build:
 
 clean:
 	rm -f tui-server
-	rm -f proto/*.pb.go
 
 run: build
 	./tui-server
-
-proto:
-	rm -f proto/*.pb.go
-	buf generate
-
-generate: proto
 
 test:
 	go test ./...
