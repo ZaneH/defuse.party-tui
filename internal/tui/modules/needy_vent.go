@@ -171,7 +171,10 @@ func (m *NeedyVentGasModule) View() string {
 		}
 	}
 
-	return content
+	return lipgloss.NewStyle().
+		Width(60).
+		Align(lipgloss.Center).
+		Render(content)
 }
 
 func (m *NeedyVentGasModule) renderTimer() string {

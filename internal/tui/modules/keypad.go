@@ -178,20 +178,23 @@ func (m *KeypadModule) View() string {
 	if m.message != "" {
 		if m.messageType == "error" {
 			content = lipgloss.JoinVertical(
-				lipgloss.Left,
+				lipgloss.Center,
 				content,
 				styles.Error.Render(m.message),
 			)
 		} else if m.messageType == "success" {
 			content = lipgloss.JoinVertical(
-				lipgloss.Left,
+				lipgloss.Center,
 				content,
 				styles.Success.Render(m.message),
 			)
 		}
 	}
 
-	return content
+	return lipgloss.NewStyle().
+		Width(60).
+		Align(lipgloss.Center).
+		Render(content)
 }
 
 func renderKeypadButton(symbol string, activated bool, position int) string {
