@@ -21,12 +21,16 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o tui-server ./cmd/
 
 FROM alpine:latest
 
-RUN apk --no-cache add ca-certificates
+RUN apk --no-cache add ca-certificates python3
 
 WORKDIR /root/
 
 COPY --from=builder /app/tui-server .
+COPY web /root/web
+COPY start.sh .
 
-EXPOSE 2222
+RUN chmod +x start.sh
 
-CMD ["./tui-server"]
+EXPOSE 2222 8080
+
+CMD ["./start.sh"]
