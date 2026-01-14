@@ -111,6 +111,7 @@ type Model struct {
     selectedModule int
 
     activeModule modules.ModuleModel
+    moduleCache  map[string]modules.ModuleModel
 
     width  int
     height int
@@ -175,6 +176,14 @@ StateLoading → StateBombSelection → StateBombView → StateModuleActive
 - [x] Module active state (interacting with specific module)
 - [x] ESC key to go back from module to bomb view
 - [x] ESC key to put down bomb from bomb view
+
+### 2.6 Module State Management
+- [x] Module cache preserves state when exiting and re-entering modules
+- [x] Cache maps module ID to module instance (map[string]modules.ModuleModel)
+- [x] When entering a module, check cache first before creating new instance
+- [x] Preserves local state (cut wires, dial positions, animation timings, etc.)
+- [x] Cache cleared when putting down bomb (returning to bomb selection)
+- [x] Cached modules reuse existing instance without calling Init() or UpdateState()
 
 ---
 

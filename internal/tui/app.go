@@ -42,6 +42,7 @@ type Model struct {
 	selectedModule int
 
 	activeModule modules.ModuleModel
+	moduleCache  map[string]modules.ModuleModel
 
 	width  int
 	height int
@@ -64,8 +65,9 @@ func NewProgramHandler(grpcAddr string) bubbletea.ProgramHandler {
 
 		return tea.NewProgram(
 			&Model{
-				state:    StateLoading,
-				grpcAddr: grpcAddr,
+				state:       StateLoading,
+				grpcAddr:    grpcAddr,
+				moduleCache: make(map[string]modules.ModuleModel),
 			},
 			tea.WithInput(sess),
 			tea.WithOutput(sess),
@@ -276,11 +278,20 @@ func (m *Model) handleBombViewKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(faceModules) > 0 {
 			m.state = StateModuleActive
 			mod := faceModules[m.selectedModule]
-			m.activeModule = modules.NewModule(mod, m.gameClient, m.sessionID, m.getCurrentBomb().GetId())
-			return m, m.activeModule.Init()
+			moduleID := mod.GetId()
+
+			if cached, exists := m.moduleCache[moduleID]; exists {
+				m.activeModule = cached
+				return m, nil
+			} else {
+				m.activeModule = modules.NewModule(mod, m.gameClient, m.sessionID, m.getCurrentBomb().GetId())
+				m.moduleCache[moduleID] = m.activeModule
+				return m, m.activeModule.Init()
+			}
 		}
 	case "esc", "tab", "b":
 		m.state = StateBombSelection
+		m.moduleCache = make(map[string]modules.ModuleModel)
 		return m, nil
 	case "<":
 		if m.currentFace > 0 {
