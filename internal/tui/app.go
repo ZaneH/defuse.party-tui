@@ -51,6 +51,8 @@ type Model struct {
 	duration         time.Duration
 	strikeFlashUntil time.Time
 	flashStrike      bool
+
+	showQuitConfirm bool
 }
 
 func NewProgramHandler(grpcAddr string) bubbletea.ProgramHandler {
@@ -189,6 +191,21 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		// Handle quit confirmation dialog
+		if m.showQuitConfirm {
+			switch msg.String() {
+			case "y", "Y":
+				if m.gameClient != nil {
+					m.gameClient.Close()
+				}
+				return m, tea.Quit
+			case "n", "N", "esc":
+				m.showQuitConfirm = false
+				return m, nil
+			}
+			return m, nil // Ignore other keys while dialog is shown
+		}
+
 		switch m.state {
 		case StateBombSelection:
 			return m.handleBombSelectionKeys(msg)
@@ -196,7 +213,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleBombViewKeys(msg)
 		}
 
-		if msg.String() == "q" || msg.String() == "ctrl+c" {
+		// Fallback quit handler for states not explicitly handled above
+		if msg.String() == "q" {
+			m.showQuitConfirm = true
+			return m, nil
+		}
+		if msg.String() == "ctrl+c" {
 			if m.gameClient != nil {
 				m.gameClient.Close()
 			}
@@ -234,7 +256,10 @@ func (m *Model) handleBombSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.selectedBomb < len(m.bombs)-1 {
 			m.selectedBomb++
 		}
-	case "q", "ctrl+c":
+	case "q":
+		m.showQuitConfirm = true
+		return m, nil
+	case "ctrl+c":
 		if m.gameClient != nil {
 			m.gameClient.Close()
 		}
@@ -284,7 +309,10 @@ func (m *Model) handleBombViewKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.selectedModule < len(faceModules)-1 {
 			m.selectedModule++
 		}
-	case "q", "ctrl+c":
+	case "q":
+		m.showQuitConfirm = true
+		return m, nil
+	case "ctrl+c":
 		if m.gameClient != nil {
 			m.gameClient.Close()
 		}
@@ -360,30 +388,51 @@ func (m *Model) maxFaceIndex() int {
 }
 
 func (m *Model) View() string {
+	var view string
+
 	switch m.state {
 	case StateLoading:
-		return m.loadingView()
+		view = m.loadingView()
 	case StateGameOver:
-		return m.errorView()
+		view = m.errorView()
 	case StateBombSelection:
-		return m.bombSelectionView()
+		view = m.bombSelectionView()
 	case StateBombView:
-		return m.bombView()
+		view = m.bombView()
 	case StateModuleActive:
 		if m.activeModule != nil {
 			header := m.renderHeader(time.Now())
 			footer := m.renderFooter()
 			content := m.activeModule.View()
-			return lipgloss.JoinVertical(
+			view = lipgloss.JoinVertical(
 				lipgloss.Top,
 				header,
 				styles.ContentBox.Render(content),
 				footer,
 			)
+		} else {
+			view = m.errorView()
 		}
-		return m.errorView()
 	}
-	return ""
+
+	// Overlay quit confirmation dialog
+	if m.showQuitConfirm {
+		dialog := styles.DialogBox.Render(
+			lipgloss.JoinVertical(
+				lipgloss.Center,
+				styles.Warning.Bold(true).Render("Quit game?"),
+				"",
+				styles.Help.Render("[Y] Yes  [N] No"),
+			),
+		)
+		view = lipgloss.Place(
+			m.width, m.height,
+			lipgloss.Center, lipgloss.Center,
+			dialog,
+		)
+	}
+
+	return view
 }
 
 func (m *Model) loadingView() string {

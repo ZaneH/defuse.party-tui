@@ -14,6 +14,7 @@ var (
 	ContentBox = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(1, 2).Width(70)
 	HeaderBox  = lipgloss.NewStyle().Border(lipgloss.DoubleBorder()).Padding(0, 1).Width(70)
 	FooterBox  = lipgloss.NewStyle().Border(lipgloss.NormalBorder()).Padding(0, 1).Width(70)
+	DialogBox  = lipgloss.NewStyle().Border(lipgloss.DoubleBorder()).Padding(1, 3).BorderForeground(lipgloss.Color("#FFD93D"))
 	Normal     = lipgloss.NewStyle()
 	Solved     = lipgloss.NewStyle().Foreground(lipgloss.Color("#6BCB77")).Bold(true)
 	Pending    = lipgloss.NewStyle().Foreground(lipgloss.Color("#AAAAAA"))
