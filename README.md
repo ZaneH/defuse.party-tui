@@ -1,17 +1,18 @@
-# Keep Talking TUI
+# defuse.party
 
-A Terminal User Interface (TUI) recreation of "Keep Talking and Nobody Explodes" served over SSH.
+A Terminal User Interface (TUI) recreation of a popular bomb defusal game served over SSH.
 
 ## Overview
 
-This project provides a text-based interface for playing KTANE, connectable via SSH. It connects to the existing Go gRPC backend (`keep-talking/`) for game logic.
+This project provides a text-based interface for playing defuse.party, connectable via SSH. It connects to the existing
+[Go gRPC backend](https://github.com/ZaneH/keep-talking) for game logic.
 
 ## Quick Start
 
 ### Prerequisites
 
 - Go 1.21+
-- The gRPC backend server running (`keep-talking/cmd/server`)
+- The gRPC backend server running
 
 ### Building
 
@@ -52,28 +53,3 @@ On first run, SSH host keys will be generated in `.ssh/`.
 |----------|---------|-------------|
 | `TUI_SSH_PORT` | `2222` | SSH listen port |
 | `TUI_GRPC_ADDR` | `localhost:50051` | gRPC backend address |
-
-## Project Structure
-
-```
-keep-talking-tui/
-├── cmd/server/         # SSH server entry point
-├── internal/
-│   ├── client/         # gRPC client wrapper
-│   ├── tui/            # Bubbletea application
-│   └── styles/         # Lipgloss styling
-├── proto/              # Protobuf definitions
-├── Makefile
-└── README.md
-```
-
-## Architecture
-
-- **SSH Server**: Charmbracelet Wish
-- **TUI Framework**: Bubbletea
-- **Styling**: Lipgloss
-- **Backend**: Existing Go gRPC server
-
-## License
-
-MIT
