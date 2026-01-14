@@ -31,7 +31,7 @@ func main() {
 		wish.WithAddress(fmt.Sprintf("%s:%s", host, sshPort)),
 		wish.WithHostKeyPath(".ssh/id_ed25519"),
 		wish.WithMiddleware(
-			bubbletea.MiddlewareWithProgramHandler(tui.NewProgramHandler(grpcAddr), termenv.Ascii),
+			bubbletea.MiddlewareWithProgramHandler(tui.NewProgramHandler(grpcAddr), termenv.TrueColor),
 			logging.Middleware(),
 		),
 	)
