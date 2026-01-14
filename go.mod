@@ -42,5 +42,3 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250303144028-a0af3efb3deb // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 )
-
-replace github.com/ZaneH/keep-talking => ../keep-talking
