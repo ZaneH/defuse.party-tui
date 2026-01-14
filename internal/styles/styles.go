@@ -11,7 +11,7 @@ var (
 	Warning    = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFD93D"))
 	Error      = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF4444"))
 	Success    = lipgloss.NewStyle().Foreground(lipgloss.Color("#6BCB77"))
-	ContentBox = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(1, 2).Width(60)
+	ContentBox = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(1, 2).Width(70)
 	HeaderBox  = lipgloss.NewStyle().Border(lipgloss.DoubleBorder()).Padding(0, 1).Width(70)
 	FooterBox  = lipgloss.NewStyle().Border(lipgloss.NormalBorder()).Padding(0, 1).Width(70)
 	Normal     = lipgloss.NewStyle()
