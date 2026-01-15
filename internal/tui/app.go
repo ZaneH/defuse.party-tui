@@ -12,10 +12,10 @@ import (
 	"github.com/charmbracelet/wish/bubbletea"
 	"github.com/muesli/termenv"
 
-	"github.com/ZaneH/keep-talking-tui/internal/client"
-	"github.com/ZaneH/keep-talking-tui/internal/styles"
-	"github.com/ZaneH/keep-talking-tui/internal/tui/modules"
-	pb "github.com/ZaneH/keep-talking/pkg/proto"
+	"github.com/ZaneH/defuse.party-tui/internal/client"
+	"github.com/ZaneH/defuse.party-tui/internal/styles"
+	"github.com/ZaneH/defuse.party-tui/internal/tui/modules"
+	pb "github.com/ZaneH/defuse.party-go/pkg/proto"
 )
 
 type Model struct {

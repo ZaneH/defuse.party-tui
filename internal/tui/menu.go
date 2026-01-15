@@ -1,7 +1,7 @@
 package tui
 
 import (
-	"github.com/ZaneH/keep-talking-tui/internal/styles"
+	"github.com/ZaneH/defuse.party-tui/internal/styles"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )

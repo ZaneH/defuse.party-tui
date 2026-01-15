@@ -1,9 +1,8 @@
-module github.com/ZaneH/keep-talking-tui
+module github.com/ZaneH/defuse.party-tui
 
 go 1.23.4
 
 require (
-	github.com/ZaneH/keep-talking v0.0.0-20260114225908-35f46125c6a7
 	github.com/charmbracelet/bubbletea v1.3.1
 	github.com/charmbracelet/lipgloss v1.0.0
 	github.com/charmbracelet/ssh v0.0.0-20240202115812-f4ab1009799a
@@ -46,4 +45,4 @@ require (
 // Development: Uncomment to use local backend (requires ../keep-talking to exist)
 // This allows instant feedback when changing proto definitions locally.
 // DO NOT commit with this uncommented - it breaks production builds.
-// replace github.com/ZaneH/keep-talking => ../keep-talking
+// replace github.com/ZaneH/defuse.party-go => ../keep-talking

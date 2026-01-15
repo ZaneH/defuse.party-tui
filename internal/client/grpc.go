@@ -8,7 +8,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	pb "github.com/ZaneH/keep-talking/pkg/proto"
+	pb "github.com/ZaneH/defuse.party-go/pkg/proto"
 )
 
 type GameClient interface {

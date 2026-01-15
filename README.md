@@ -5,7 +5,7 @@ A Terminal User Interface (TUI) recreation of a popular bomb defusal game served
 ## Overview
 
 This project provides a text-based interface for playing defuse.party, connectable via SSH. It connects to the existing
-[Go gRPC backend](https://github.com/ZaneH/keep-talking) for game logic.
+[Go gRPC backend](https://github.com/ZaneH/defuse.party-go) for game logic.
 
 ## Quick Start
 
@@ -14,7 +14,7 @@ This project provides a text-based interface for playing defuse.party, connectab
 - Go 1.21+
 - The gRPC backend server running
 
-**Note**: This TUI imports protocol buffer definitions from the [backend repository](https://github.com/ZaneH/keep-talking) as a Go module dependency. Proto files are not duplicated in this repository - they are consumed directly from the backend's `pkg/proto` package.
+**Note**: This TUI imports protocol buffer definitions from the [backend repository](https://github.com/ZaneH/defuse.party-go) as a Go module dependency. Proto files are not duplicated in this repository - they are consumed directly from the backend's `pkg/proto` package.
 
 ### Building
 
@@ -73,7 +73,7 @@ By default, the TUI fetches proto definitions from the published backend reposit
 
 ```bash
 # Update to latest backend version
-go get -u github.com/ZaneH/keep-talking@latest
+go get -u github.com/ZaneH/defuse.party-go@latest
 go mod tidy
 ```
 
@@ -87,7 +87,7 @@ For rapid local development with proto changes, you can use the local backend:
 
 1. Edit `go.mod` and uncomment the `replace` directive:
    ```go
-   replace github.com/ZaneH/keep-talking => ../keep-talking
+   replace github.com/ZaneH/defuse.party-go => ../keep-talking
    ```
 
 2. Make changes to proto files in `../keep-talking/proto/`
@@ -103,7 +103,7 @@ For rapid local development with proto changes, you can use the local backend:
 5. When ready to deploy:
    - Commit and push backend changes
    - Re-comment the `replace` directive in `go.mod`
-   - Run `go get -u github.com/ZaneH/keep-talking@latest`
+   - Run `go get -u github.com/ZaneH/defuse.party-go@latest`
    - Commit TUI with updated `go.mod`
 
 **Important**: Never commit with the `replace` directive uncommented - it breaks production builds.

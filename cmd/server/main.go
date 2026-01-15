@@ -14,7 +14,7 @@ import (
 	"github.com/charmbracelet/wish/logging"
 	"github.com/muesli/termenv"
 
-	"github.com/ZaneH/keep-talking-tui/internal/tui"
+	"github.com/ZaneH/defuse.party-tui/internal/tui"
 )
 
 func main() {

@@ -3,8 +3,8 @@ package tui
 import (
 	"time"
 
-	"github.com/ZaneH/keep-talking-tui/internal/client"
-	pb "github.com/ZaneH/keep-talking/pkg/proto"
+	"github.com/ZaneH/defuse.party-tui/internal/client"
+	pb "github.com/ZaneH/defuse.party-go/pkg/proto"
 )
 
 type loadingErrorMsg struct{ err error }

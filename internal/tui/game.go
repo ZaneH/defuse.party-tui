@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ZaneH/keep-talking-tui/internal/styles"
-	pb "github.com/ZaneH/keep-talking/pkg/proto"
+	"github.com/ZaneH/defuse.party-tui/internal/styles"
+	pb "github.com/ZaneH/defuse.party-go/pkg/proto"
 	"github.com/charmbracelet/lipgloss"
 )
 

@@ -8,8 +8,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/ZaneH/keep-talking-tui/internal/styles"
-	pb "github.com/ZaneH/keep-talking/pkg/proto"
+	"github.com/ZaneH/defuse.party-tui/internal/styles"
+	pb "github.com/ZaneH/defuse.party-go/pkg/proto"
 )
 
 type ClockModule struct {

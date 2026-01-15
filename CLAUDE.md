@@ -53,7 +53,7 @@ keep-talking-tui/
 ## Phase 1: Foundation (SSH Server + Basic Shell)
 
 ### 1.1 Project Setup
-- [x] Initialize Go module: `github.com/ZaneH/keep-talking-tui`
+- [x] Initialize Go module: `github.com/ZaneH/defuse.party-tui`
 - [x] Add dependencies:
   - `github.com/charmbracelet/wish` (SSH server)
   - `github.com/charmbracelet/bubbletea` (TUI framework)
